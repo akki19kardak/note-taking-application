@@ -1,8 +1,3 @@
-// Note Helper Functions
-
-/**
- * Format date to readable string
- */
 export const formatDate = (dateStr) => {
   const date = new Date(dateStr);
   return date.toLocaleDateString("en-US", {
@@ -14,39 +9,22 @@ export const formatDate = (dateStr) => {
   });
 };
 
-/**
- * Get word count from content
- */
 export const getWordCount = (content) => {
   if (!content.trim()) return 0;
   return content.trim().split(/\s+/).filter((word) => word.length > 0).length;
 };
 
-/**
- * Get character count
- */
-export const getCharCount = (content) => {
-  return content.length;
-};
+export const getCharCount = (content) => content.length;
 
-/**
- * Generate note preview
- */
 export const getPreview = (content, maxLength = 80) => {
   if (content.length <= maxLength) return content;
   return content.substring(0, maxLength).trim() + "...";
 };
 
-/**
- * Check if note is empty
- */
 export const isEmptyNote = (title, content) => {
   return !title.trim() || !content.trim();
 };
 
-/**
- * Categorize note by content
- */
 export const categorizeNote = (title, content) => {
   const lowerTitle = title.toLowerCase();
   const lowerContent = content.toLowerCase();
@@ -72,9 +50,6 @@ export const categorizeNote = (title, content) => {
   return "general";
 };
 
-/**
- * Get color for category
- */
 export const getCategoryColor = (category) => {
   const colors = {
     personal: "#e8f0eb",
@@ -88,9 +63,6 @@ export const getCategoryColor = (category) => {
   return colors[category] || colors.general;
 };
 
-/**
- * Search notes by title/content/tags
- */
 export const searchNotes = (notes, searchTerm) => {
   if (!searchTerm.trim()) return notes;
 
@@ -103,9 +75,6 @@ export const searchNotes = (notes, searchTerm) => {
   );
 };
 
-/**
- * Sort notes by various criteria
- */
 export const sortNotes = (notes, sortBy = "date") => {
   const sorted = [...notes];
 
@@ -123,12 +92,8 @@ export const sortNotes = (notes, sortBy = "date") => {
   }
 };
 
-/**
- * Export notes as JSON
- */
 export const exportNotes = (notes) => {
   const data = JSON.stringify(notes, null, 2);
   const blob = new Blob([data], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  return url;
+  return URL.createObjectURL(blob);
 };
