@@ -1,121 +1,116 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import React, { useState } from "react";
+import { useNotes } from "./hooks/useNotes";
+import { Sidebar } from "./components/Sidebar";
+import { NoteEditor } from "./components/NoteEditor";
+import { formatDate } from "./utils/noteHelpers";
+import "./App.css";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const {
+    notes,
+    loading,
+    createNote,
+    updateNote,
+    deleteNote,
+    toggleFavorite,
+  } = useNotes();
+
+  const [selectedNote, setSelectedNote] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortBy, setSortBy] = useState("date");
+  const [isEditing, setIsEditing] = useState(false);
+
+  const handleCreateNote = async (title, content, tags) => {
+    const success = await createNote(title, content, tags);
+    if (success) {
+      setSelectedNote(null);
+      setIsEditing(false);
+    }
+  };
+
+  const handleUpdateNote = async (title, content, tags) => {
+    if (!selectedNote) return;
+    const success = await updateNote(selectedNote._id, title, content, tags);
+    if (success) {
+      setSelectedNote(null);
+      setIsEditing(false);
+    }
+  };
+
+  const handleDeleteNote = async (id) => {
+    await deleteNote(id);
+    if (selectedNote?._id === id) {
+      setSelectedNote(null);
+    }
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="app">
+      {/* Animated Background */}
+      <div className="animated-background">
+        <div className="gradient-orb orb-1"></div>
+        <div className="gradient-orb orb-2"></div>
+        <div className="gradient-orb orb-3"></div>
+        <div className="gradient-orb orb-4"></div>
+        <div className="noise-overlay"></div>
+      </div>
 
-      <div className="ticks"></div>
+      {/* Main Content */}
+      <div className="main-content">
+        <Sidebar
+          notes={notes}
+          loading={loading}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          selectedNote={selectedNote}
+          onSelectNote={setSelectedNote}
+          onDeleteNote={handleDeleteNote}
+          onToggleFavorite={toggleFavorite}
+          onCreateNote={() => setIsEditing(true)}
+        />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+        <div className="editor-panel">
+          {selectedNote || isEditing ? (
+            <NoteEditor
+              note={selectedNote}
+              onSave={selectedNote ? handleUpdateNote : handleCreateNote}
+              onCancel={() => {
+                setSelectedNote(null);
+                setIsEditing(false);
+              }}
+              isEditing={isEditing || selectedNote}
+            />
+          ) : (
+            <div className="empty-editor">
+              <h2>Welcome to Notes ✨</h2>
+              <p>Select a note from the sidebar or create a new one</p>
+            </div>
+          )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+          {selectedNote && !isEditing && (
+            <div className="note-details">
+              <div className="details-meta">
+                <span className="detail-item">
+                  Created: {formatDate(selectedNote.createdAt)}
+                </span>
+                <span className="detail-item">
+                  Updated: {formatDate(selectedNote.updatedAt)}
+                </span>
+              </div>
+              <button
+                className="edit-btn"
+                onClick={() => setIsEditing(true)}
+              >
+                Edit Note
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
-export default App
+export default App;
