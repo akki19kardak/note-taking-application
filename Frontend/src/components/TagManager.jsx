@@ -1,55 +1,44 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 
-export function TagManager({ tags, onTagsChange }) {
+export function TagManager({ tags = [], onChange }) {
   const [input, setInput] = useState("");
+  const inputRef = useRef(null);
 
-  const addTag = (val) => {
-    const tag = val.trim().toLowerCase().replace(/\s+/g, "-");
-    if (tag && !tags.includes(tag)) {
-      onTagsChange([...tags, tag]);
-    }
+  const normalise = (t) =>
+    t.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
+  const addTag = (raw) => {
+    const tag = normalise(raw);
+    if (!tag || tags.includes(tag)) return;
+    onChange([...tags, tag]);
     setInput("");
   };
 
-  const removeTag = (tag) => {
-    onTagsChange(tags.filter((t) => t !== tag));
-  };
+  const removeTag = (tag) => onChange(tags.filter((t) => t !== tag));
 
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault();
-      addTag(input);
-    } else if (e.key === "Backspace" && !input && tags.length > 0) {
-      removeTag(tags[tags.length - 1]);
-    }
+  const handleKey = (e) => {
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addTag(input); }
+    if (e.key === "Backspace" && !input && tags.length) removeTag(tags[tags.length - 1]);
   };
 
   return (
-    <div className="tag-manager" role="group" aria-label="Tags">
-      <span className="tag-manager-label">Tags</span>
-      {tags.map((tag) => (
-        <span key={tag} className="tag-manager-pill">
-          {tag}
-          <button
-            className="tag-manager-remove"
-            onClick={() => removeTag(tag)}
-            aria-label={`Remove tag ${tag}`}
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
+    <div className="tag-manager" onClick={() => inputRef.current?.focus()}>
+      {tags.map((t) => (
+        <span key={t} className="tag-pill">
+          {t}
+          <button className="tag-remove"
+            onClick={(e) => { e.stopPropagation(); removeTag(t); }}
+            aria-label={`Remove tag ${t}`}>×</button>
         </span>
       ))}
       <input
-        className="tag-manager-input"
-        type="text"
-        placeholder="Add tag…"
+        ref={inputRef}
+        className="tag-input"
+        placeholder={tags.length === 0 ? "Add tags…" : ""}
         value={input}
         onChange={(e) => setInput(e.target.value)}
-        onKeyDown={handleKeyDown}
+        onKeyDown={handleKey}
         onBlur={() => input && addTag(input)}
-        aria-label="Add a tag"
       />
     </div>
   );

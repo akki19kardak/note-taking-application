@@ -1,70 +1,107 @@
-/**
- * Format a date string into a human-readable relative or absolute date.
- */
+// ── Date formatting ────────────────────────────────────────────────────────
 export function formatDate(dateStr) {
-  if (!dateStr) return "";
   const date = new Date(dateStr);
-  const now = new Date();
-  const diff = now - date;
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-
-  if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days === 1) return "Yesterday";
-  if (days < 7) return `${days}d ago`;
-
-  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: days > 365 ? "numeric" : undefined });
+  const now  = new Date();
+  const diff = Math.floor((now - date) / 1000);
+  if (diff < 60)        return "Just now";
+  if (diff < 3600)      return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400)     return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 86400 * 2) return "Yesterday";
+  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)}d ago`;
+  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 }
 
-/**
- * Get a plain-text preview of note content (strips whitespace/newlines).
- */
-export function getPreview(content, maxChars = 120) {
-  if (!content) return "";
-  return content.replace(/\s+/g, " ").trim().slice(0, maxChars) + (content.length > maxChars ? "…" : "");
+// ── Word count ─────────────────────────────────────────────────────────────
+export function wordCount(content) {
+  return (content || "").trim().split(/\s+/).filter(Boolean).length;
 }
 
-/**
- * Filter notes by search term (title + content + tags).
- */
-export function filterNotes(notes, searchTerm) {
-  if (!searchTerm?.trim()) return notes;
-  const q = searchTerm.toLowerCase();
-  return notes.filter(
-    (n) =>
-      n.title?.toLowerCase().includes(q) ||
-      n.content?.toLowerCase().includes(q) ||
-      n.tags?.some((t) => t.toLowerCase().includes(q))
-  );
+// ── Preview (strip markdown) ───────────────────────────────────────────────
+export function getPreview(content, maxLen = 120) {
+  const plain = (content || "")
+    .replace(/#{1,6}\s/g, "")
+    .replace(/[*_`~]/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/!\[.*?\]\(.*?\)/g, "[image]")
+    .replace(/\n+/g, " ").trim();
+  return plain.length > maxLen ? plain.slice(0, maxLen) + "…" : plain;
 }
 
-/**
- * Sort notes by the given key: "date" | "title" | "favorites".
- */
+// ── Filter (search + tag) ──────────────────────────────────────────────────
+export function filterNotes(notes, searchTerm, activeTag) {
+  let result = notes;
+  if (activeTag) result = result.filter((n) => n.tags?.includes(activeTag));
+  if (searchTerm.trim()) {
+    const q = searchTerm.toLowerCase();
+    result = result.filter(
+      (n) =>
+        n.title?.toLowerCase().includes(q) ||
+        n.content?.toLowerCase().includes(q) ||
+        n.tags?.some((t) => t.toLowerCase().includes(q))
+    );
+  }
+  return result;
+}
+
+// ── Sort ───────────────────────────────────────────────────────────────────
 export function sortNotes(notes, sortBy) {
   const copy = [...notes];
-  if (sortBy === "date") {
-    return copy.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  switch (sortBy) {
+    case "date":      return copy.sort((a, b) => new Date(b.updatedAt)  - new Date(a.updatedAt));
+    case "created":   return copy.sort((a, b) => new Date(b.createdAt)  - new Date(a.createdAt));
+    case "title":     return copy.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    case "wordcount": return copy.sort((a, b) => wordCount(b.content)   - wordCount(a.content));
+    default:          return copy;
   }
-  if (sortBy === "title") {
-    return copy.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
-  }
-  if (sortBy === "favorites") {
-    return copy.sort((a, b) => Number(b.favorite) - Number(a.favorite) || new Date(b.updatedAt) - new Date(a.updatedAt));
-  }
-  return copy;
 }
 
-/**
- * Group notes by their first tag (or "Untagged").
- */
+// ── Group by tag ───────────────────────────────────────────────────────────
 export function groupByTag(notes) {
-  return notes.reduce((acc, note) => {
-    const key = note.tags?.[0] || "Untagged";
-    (acc[key] = acc[key] || []).push(note);
-    return acc;
-  }, {});
+  const map = {};
+  notes.forEach((note) => {
+    const tags = note.tags?.length ? note.tags : ["Untagged"];
+    tags.forEach((tag) => { if (!map[tag]) map[tag] = []; map[tag].push(note); });
+  });
+  return map;
+}
+
+// ── All unique tags ────────────────────────────────────────────────────────
+export function getAllTags(notes) {
+  const set = new Set();
+  notes.forEach((n) => n.tags?.forEach((t) => set.add(t)));
+  return [...set].sort();
+}
+
+// ── Writing streak ─────────────────────────────────────────────────────────
+export function calcStreak(notes) {
+  if (!notes.length) return 0;
+  const days = new Set(notes.map((n) => new Date(n.updatedAt).toDateString()));
+  let streak = 0;
+  const today = new Date();
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    if (days.has(d.toDateString())) streak++;
+    else break;
+  }
+  return streak;
+}
+
+// ── Notes per week (last 8 weeks) ─────────────────────────────────────────
+export function notesPerWeek(notes) {
+  return Array.from({ length: 8 }, (_, i) => {
+    const end   = new Date(); end.setDate(end.getDate() - i * 7);
+    const start = new Date(end); start.setDate(start.getDate() - 6);
+    return {
+      label: `W-${i === 0 ? "now" : i}`,
+      count: notes.filter((n) => { const d = new Date(n.updatedAt); return d >= start && d <= end; }).length,
+    };
+  }).reverse();
+}
+
+// ── Top tags ───────────────────────────────────────────────────────────────
+export function topTags(notes, limit = 8) {
+  const freq = {};
+  notes.forEach((n) => n.tags?.forEach((t) => { freq[t] = (freq[t] || 0) + 1; }));
+  return Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, limit).map(([tag, count]) => ({ tag, count }));
 }
