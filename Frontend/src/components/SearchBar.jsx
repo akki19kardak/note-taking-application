@@ -1,25 +1,20 @@
 import React from "react";
-import { Search } from "lucide-react";
 
-export function SearchBar({ searchTerm, onSearchChange }) {
+// SearchBar is integrated directly into Sidebar, but exported for standalone use.
+export function SearchBar({ value, onChange, placeholder = "Search notes…" }) {
   return (
-    <div className="search-bar">
-      <Search size={20} className="search-icon" />
+    <div className="search-box" role="search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
       <input
-        type="text"
         className="search-input"
-        placeholder="Search notes by title, content, or tags..."
-        value={searchTerm}
-        onChange={(e) => onSearchChange(e.target.value)}
+        type="search"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label="Search notes"
       />
-      {searchTerm && (
-        <button
-          className="clear-search"
-          onClick={() => onSearchChange("")}
-        >
-          ✕
-        </button>
-      )}
     </div>
   );
 }

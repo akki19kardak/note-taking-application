@@ -1,99 +1,70 @@
-export const formatDate = (dateStr) => {
+/**
+ * Format a date string into a human-readable relative or absolute date.
+ */
+export function formatDate(dateStr) {
+  if (!dateStr) return "";
   const date = new Date(dateStr);
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
+  const now = new Date();
+  const diff = now - date;
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
 
-export const getWordCount = (content) => {
-  if (!content.trim()) return 0;
-  return content.trim().split(/\s+/).filter((word) => word.length > 0).length;
-};
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days}d ago`;
 
-export const getCharCount = (content) => content.length;
+  return date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: days > 365 ? "numeric" : undefined });
+}
 
-export const getPreview = (content, maxLength = 80) => {
-  if (content.length <= maxLength) return content;
-  return content.substring(0, maxLength).trim() + "...";
-};
+/**
+ * Get a plain-text preview of note content (strips whitespace/newlines).
+ */
+export function getPreview(content, maxChars = 120) {
+  if (!content) return "";
+  return content.replace(/\s+/g, " ").trim().slice(0, maxChars) + (content.length > maxChars ? "…" : "");
+}
 
-export const isEmptyNote = (title, content) => {
-  return !title.trim() || !content.trim();
-};
-
-export const categorizeNote = (title, content) => {
-  const lowerTitle = title.toLowerCase();
-  const lowerContent = content.toLowerCase();
-
-  const keywords = {
-    personal: ["me", "my", "i", "feel", "thought", "life", "day"],
-    work: ["project", "client", "team", "meeting", "task", "deadline"],
-    learning: ["learn", "study", "course", "read", "book", "tutorial"],
-    ideas: ["idea", "concept", "brainstorm", "vision"],
-    quotes: ["said", "\"", "'", "quote", "wisdom"],
-    todo: ["todo", "need", "must", "should", "remember", "check"],
-  };
-
-  for (const [category, words] of Object.entries(keywords)) {
-    if (
-      words.some((word) => lowerTitle.includes(word)) ||
-      words.some((word) => lowerContent.includes(word))
-    ) {
-      return category;
-    }
-  }
-
-  return "general";
-};
-
-export const getCategoryColor = (category) => {
-  const colors = {
-    personal: "#e8f0eb",
-    work: "#f0e8e8",
-    learning: "#e8eaf0",
-    ideas: "#f5f0e8",
-    quotes: "#f0f5f0",
-    todo: "#fbe8e8",
-    general: "#f6f4ef",
-  };
-  return colors[category] || colors.general;
-};
-
-export const searchNotes = (notes, searchTerm) => {
-  if (!searchTerm.trim()) return notes;
-
-  const term = searchTerm.toLowerCase();
+/**
+ * Filter notes by search term (title + content + tags).
+ */
+export function filterNotes(notes, searchTerm) {
+  if (!searchTerm?.trim()) return notes;
+  const q = searchTerm.toLowerCase();
   return notes.filter(
-    (note) =>
-      note.title.toLowerCase().includes(term) ||
-      note.content.toLowerCase().includes(term) ||
-      (note.tags && note.tags.some((tag) => tag.toLowerCase().includes(term)))
+    (n) =>
+      n.title?.toLowerCase().includes(q) ||
+      n.content?.toLowerCase().includes(q) ||
+      n.tags?.some((t) => t.toLowerCase().includes(q))
   );
-};
+}
 
-export const sortNotes = (notes, sortBy = "date") => {
-  const sorted = [...notes];
-
-  switch (sortBy) {
-    case "date":
-      return sorted.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    case "title":
-      return sorted.sort((a, b) => a.title.localeCompare(b.title));
-    case "length":
-      return sorted.sort((a, b) => b.content.length - a.content.length);
-    case "wordCount":
-      return sorted.sort((a, b) => getWordCount(b.content) - getWordCount(a.content));
-    default:
-      return sorted;
+/**
+ * Sort notes by the given key: "date" | "title" | "favorites".
+ */
+export function sortNotes(notes, sortBy) {
+  const copy = [...notes];
+  if (sortBy === "date") {
+    return copy.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
   }
-};
+  if (sortBy === "title") {
+    return copy.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+  }
+  if (sortBy === "favorites") {
+    return copy.sort((a, b) => Number(b.favorite) - Number(a.favorite) || new Date(b.updatedAt) - new Date(a.updatedAt));
+  }
+  return copy;
+}
 
-export const exportNotes = (notes) => {
-  const data = JSON.stringify(notes, null, 2);
-  const blob = new Blob([data], { type: "application/json" });
-  return URL.createObjectURL(blob);
-};
+/**
+ * Group notes by their first tag (or "Untagged").
+ */
+export function groupByTag(notes) {
+  return notes.reduce((acc, note) => {
+    const key = note.tags?.[0] || "Untagged";
+    (acc[key] = acc[key] || []).push(note);
+    return acc;
+  }, {});
+}

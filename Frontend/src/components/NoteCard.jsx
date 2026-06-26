@@ -1,64 +1,70 @@
 import React from "react";
-import { formatDate, getPreview, categorizeNote, getCategoryColor } from "../utils/noteHelpers";
-import { Star, Trash2, Tag } from "lucide-react";
+import { formatDate, getPreview } from "../utils/noteHelpers";
 
-export function NoteCard({ note, isActive, onSelect, onDelete, onToggleFavorite }) {
-  const category = note.category || categorizeNote(note.title, note.content);
-  const categoryColor = getCategoryColor(category);
+export function NoteCard({ note, isActive, onSelect, onDelete, onToggleFavorite, style }) {
+  const handleDelete = (e) => {
+    e.stopPropagation();
+    if (window.confirm('Delete "' + note.title + '"?')) onDelete();
+  };
+
+  const handleFav = (e) => {
+    e.stopPropagation();
+    onToggleFavorite();
+  };
 
   return (
-    <div
-      className={`note-card ${isActive ? "active" : ""}`}
-      onClick={() => onSelect(note)}
+    <article
+      className={`note-card${isActive ? " active" : ""}`}
+      onClick={onSelect}
+      role="listitem"
+      tabIndex={0}
+      style={style}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onSelect(); }}
+      aria-label={`Note: ${note.title}`}
+      aria-current={isActive ? "true" : undefined}
     >
-      <div className="note-card-header">
-        <div className="note-title-section">
-          <h3 className="note-title">{note.title}</h3>
-          <span className="category-badge" style={{ background: categoryColor }}>
-            {category}
-          </span>
-        </div>
-        <div className="note-actions">
+      <div className="note-card-top">
+        <h3 className="note-card-title">{note.title || "Untitled"}</h3>
+        <div className="note-card-actions" aria-label="Note actions">
           <button
-            className="action-btn favorite-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleFavorite(note);
-            }}
+            className={`note-card-action fav${note.favorite ? " on" : ""}`}
+            onClick={handleFav}
+            aria-label={note.favorite ? "Remove from starred" : "Add to starred"}
           >
-            <Star
-              size={16}
-              fill={note.isFavorite ? "currentColor" : "none"}
-              color={note.isFavorite ? "#2d6a4f" : "currentColor"}
-            />
+            <svg width="13" height="13" viewBox="0 0 24 24" fill={note.favorite ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
           </button>
-          <button
-            className="action-btn delete-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(note._id);
-            }}
-          >
-            <Trash2 size={16} />
+          <button className="note-card-action del" onClick={handleDelete} aria-label="Delete note">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6M14 11v6"/>
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            </svg>
           </button>
         </div>
       </div>
 
-      <p className="note-preview">{getPreview(note.content)}</p>
+      {note.content && (
+        <p className="note-card-preview">{getPreview(note.content)}</p>
+      )}
 
-      <div className="note-meta">
-        {note.tags && note.tags.length > 0 && (
-          <div className="note-tags">
-            {note.tags.map((tag) => (
-              <span key={tag} className="tag">
-                <Tag size={12} />
-                {tag}
-              </span>
+      <div className="note-card-footer">
+        <time className="note-card-date" dateTime={note.updatedAt}>
+          {formatDate(note.updatedAt)}
+        </time>
+        {note.tags?.length > 0 && (
+          <div className="note-card-tags">
+            {note.tags.slice(0, 3).map((tag) => (
+              <span key={tag} className="tag-pill">{tag}</span>
             ))}
+            {note.tags.length > 3 && (
+              <span className="tag-pill">+{note.tags.length - 3}</span>
+            )}
           </div>
         )}
-        <span className="note-date">{formatDate(note.createdAt)}</span>
       </div>
-    </div>
+    </article>
   );
 }
