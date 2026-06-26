@@ -1,178 +1,246 @@
-import React from "react";
-import { NoteCard } from "./NoteCard";
-import { filterNotes, sortNotes } from "../utils/noteHelpers";
+import React, { useState, useMemo } from "react";
+import Fuse from "fuse.js";
+import { formatDate, getPreview, sortNotes, getAllTags } from "../utils/noteHelpers";
+
+const SORT_OPTIONS = [
+  { value: "date",      label: "Last edited" },
+  { value: "created",   label: "Created" },
+  { value: "title",     label: "Title A–Z" },
+  { value: "wordcount", label: "Word count" },
+];
 
 export function Sidebar({
   notes, loading, searchTerm, onSearchChange,
   sortBy, onSortChange, selectedNote, onSelectNote,
-  onDeleteNote, onToggleFavorite, onCreateNote, isOpen, onClose,
+  onDeleteNote, onToggleFavorite, onCreateNote,
+  isOpen, onClose, trashCount, onOpenTrash,
+  onOpenArchive, archivedCount, userButton,
 }) {
-  const filtered = filterNotes(notes, searchTerm);
-  const sorted = sortNotes(filtered, sortBy);
+  const [activeTag, setActiveTag] = useState(null);
+  const [showFavs,  setShowFavs]  = useState(false);
 
-  const favorites = sorted.filter((n) => n.favorite);
-  const others = sorted.filter((n) => !n.favorite);
+  // All unique tags across notes
+  const allTags = useMemo(() => getAllTags(notes), [notes]);
 
-  const ThemeToggle = () => {
-    const [dark, setDark] = React.useState(
-      () => document.documentElement.getAttribute("data-theme") === "dark" ||
-        (!document.documentElement.getAttribute("data-theme") &&
-          window.matchMedia("(prefers-color-scheme: dark)").matches)
-    );
-    const toggle = () => {
-      const next = dark ? "light" : "dark";
-      document.documentElement.setAttribute("data-theme", next);
-      setDark(!dark);
-    };
-    return (
-      <button className="btn-icon" onClick={toggle} aria-label="Toggle theme">
-        {dark ? (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="5"/>
-            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-          </svg>
-        ) : (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-          </svg>
-        )}
-      </button>
-    );
-  };
+  // Fuse.js fuzzy search
+  const fuse = useMemo(() => new Fuse(notes, {
+    keys: ["title", "content", "tags"],
+    threshold: 0.35,
+    includeScore: true,
+  }), [notes]);
+
+  const filtered = useMemo(() => {
+    let result = notes;
+
+    // Fuzzy search
+    if (searchTerm.trim()) {
+      result = fuse.search(searchTerm).map((r) => r.item);
+    }
+
+    // Tag filter
+    if (activeTag) result = result.filter((n) => n.tags?.includes(activeTag));
+
+    // Favourites filter
+    if (showFavs) result = result.filter((n) => n.favorite);
+
+    return sortNotes(result, sortBy);
+  }, [notes, searchTerm, activeTag, showFavs, sortBy, fuse]);
 
   return (
-    <aside className={`sidebar${isOpen ? " open" : ""}`} role="navigation" aria-label="Notes sidebar">
+    <aside className={`sidebar${isOpen ? " open" : ""}`}>
+      {/* Header */}
       <div className="sidebar-header">
         <div className="sidebar-brand">
-          <div className="brand-logo">
-            <div className="brand-icon" aria-hidden="true">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <line x1="10" y1="9" x2="8" y2="9"/>
-              </svg>
-            </div>
-            <span className="brand-name">Notara</span>
-          </div>
-          <div className="sidebar-actions">
-            <ThemeToggle />
-            <button className="btn-icon" aria-label="Close sidebar" onClick={onClose} style={{ display: isOpen ? undefined : "none" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <div className="search-box" role="search">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="var(--color-primary)" strokeWidth="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
           </svg>
-          <input
-            className="search-input"
-            type="search"
-            placeholder="Search notes…"
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            aria-label="Search notes"
-          />
+          <span>Notara</span>
         </div>
-
-        <div className="sort-row">
-          <span className="sort-label">Sort</span>
-          {["date", "title", "favorites"].map((s) => (
-            <button
-              key={s}
-              className={`sort-btn${sortBy === s ? " active" : ""}`}
-              onClick={() => onSortChange(s)}
-              aria-pressed={sortBy === s}
-            >
-              {s === "date" ? "Recent" : s === "title" ? "A–Z" : "★ First"}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="sidebar-stats" aria-label="Note statistics">
-        <div className="stat-item">
-          <span className="stat-value">{notes.length}</span>
-          <span className="stat-label">Notes</span>
-        </div>
-        <div className="stat-item">
-          <span className="stat-value">{favorites.length}</span>
-          <span className="stat-label">Starred</span>
-        </div>
-        <div className="stat-item">
-          <span className="stat-value">
-            {[...new Set(notes.flatMap((n) => n.tags || []))].length}
-          </span>
-          <span className="stat-label">Tags</span>
-        </div>
-      </div>
-
-      <div className="sidebar-list" role="list" aria-label="Notes list">
-        {loading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="skeleton-note" aria-hidden="true">
-              <div className="skeleton skeleton-line w-3q" />
-              <div className="skeleton skeleton-line w-full" />
-              <div className="skeleton skeleton-line w-half" />
-            </div>
-          ))
-        ) : filtered.length === 0 && searchTerm ? (
-          <div className="empty-search">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        <div style={{ display:"flex", gap:"var(--space-2)", alignItems:"center" }}>
+          <button className="btn-new" onClick={onCreateNote} aria-label="New note">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
-            <h3>No results found</h3>
-            <p>Try a different search term or clear the filter.</p>
-          </div>
-        ) : (
-          <>
-            {favorites.length > 0 && (
-              <>
-                <p className="sidebar-section-label">Starred</p>
-                {favorites.map((note, i) => (
-                  <NoteCard
-                    key={note._id}
-                    note={note}
-                    isActive={selectedNote?._id === note._id}
-                    onSelect={() => onSelectNote(note)}
-                    onDelete={() => onDeleteNote(note._id)}
-                    onToggleFavorite={() => onToggleFavorite(note._id)}
-                    style={{ animationDelay: `${i * 30}ms` }}
-                  />
-                ))}
-              </>
-            )}
-            {others.length > 0 && (
-              <>
-                {favorites.length > 0 && <p className="sidebar-section-label">All Notes</p>}
-                {others.map((note, i) => (
-                  <NoteCard
-                    key={note._id}
-                    note={note}
-                    isActive={selectedNote?._id === note._id}
-                    onSelect={() => onSelectNote(note)}
-                    onDelete={() => onDeleteNote(note._id)}
-                    onToggleFavorite={() => onToggleFavorite(note._id)}
-                    style={{ animationDelay: `${(favorites.length + i) * 30}ms` }}
-                  />
-                ))}
-              </>
-            )}
-          </>
+            New
+          </button>
+          <button className="btn-icon sidebar-close" onClick={onClose} aria-label="Close sidebar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="sidebar-search">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input
+          className="search-input"
+          placeholder="Fuzzy search…"
+          value={searchTerm}
+          onChange={(e) => onSearchChange(e.target.value)}
+          aria-label="Search notes"
+        />
+        {searchTerm && (
+          <button className="search-clear" onClick={() => onSearchChange("")} aria-label="Clear search">×</button>
         )}
       </div>
 
-      <button className="new-note-btn" onClick={onCreateNote} aria-label="Create new note">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        New note
-      </button>
+      {/* Sort */}
+      <div className="sidebar-sort">
+        <select
+          className="sort-select"
+          value={sortBy}
+          onChange={(e) => onSortChange(e.target.value)}
+          aria-label="Sort notes"
+        >
+          {SORT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        <button
+          className={`btn-fav-filter${showFavs ? " active" : ""}`}
+          onClick={() => setShowFavs((v) => !v)}
+          title="Show starred only"
+          aria-pressed={showFavs}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24"
+            fill={showFavs ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+          </svg>
+        </button>
+      </div>
+
+      {/* Tag filter bar */}
+      {allTags.length > 0 && (
+        <div className="tag-filter-bar">
+          <button
+            className={`tag-filter-chip${!activeTag ? " active" : ""}`}
+            onClick={() => setActiveTag(null)}
+          >All</button>
+          {allTags.map((tag) => (
+            <button
+              key={tag}
+              className={`tag-filter-chip${activeTag === tag ? " active" : ""}`}
+              onClick={() => setActiveTag(activeTag === tag ? null : tag)}
+            >{tag}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Notes list */}
+      <div className="notes-list">
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="note-card skeleton-card">
+              <div className="skeleton skeleton-heading" />
+              <div className="skeleton skeleton-text" />
+              <div className="skeleton skeleton-text" style={{ width: "60%" }} />
+            </div>
+          ))
+        ) : filtered.length === 0 ? (
+          <div className="notes-empty">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="1.2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            <p>{searchTerm ? "No notes match your search" : "No notes yet"}</p>
+            {!searchTerm && (
+              <button className="empty-cta" onClick={onCreateNote}>Create one</button>
+            )}
+          </div>
+        ) : (
+          filtered.map((note) => (
+            <div
+              key={note._id}
+              className={`note-card note-color-${note.color || "none"}${
+                selectedNote?._id === note._id ? " selected" : ""
+              }`}
+              onClick={() => onSelectNote(note)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === "Enter" && onSelectNote(note)}
+            >
+              <div className="note-card-header">
+                <span className="note-card-title">{note.title || "Untitled"}</span>
+                <div className="note-card-actions">
+                  <button
+                    className={`btn-icon-sm${note.favorite ? " starred" : ""}`}
+                    onClick={(e) => { e.stopPropagation(); onToggleFavorite(note._id); }}
+                    aria-label={note.favorite ? "Unstar" : "Star"}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24"
+                      fill={note.favorite ? "currentColor" : "none"}
+                      stroke="currentColor" strokeWidth="2">
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                    </svg>
+                  </button>
+                  <button
+                    className="btn-icon-sm"
+                    onClick={(e) => { e.stopPropagation(); onDeleteNote(note._id); }}
+                    aria-label="Delete note"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6l-1 14H6L5 6"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <p className="note-card-preview">{getPreview(note.content)}</p>
+              <div className="note-card-meta">
+                <span className="note-card-date">{formatDate(note.updatedAt)}</span>
+                {note.tags?.slice(0, 2).map((t) => (
+                  <span key={t} className="tag-chip">{t}</span>
+                ))}
+                {note.tags?.length > 2 && (
+                  <span className="tag-chip tag-chip-more">+{note.tags.length - 2}</span>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="sidebar-footer">
+        <div style={{ display:"flex", gap:"var(--space-2)" }}>
+          <button className="sidebar-footer-btn" onClick={onOpenTrash} title="Recently Deleted">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14H6L5 6"/>
+              <path d="M10 11v6M14 11v6"/>
+              <path d="M9 6V4h6v2"/>
+            </svg>
+            Trash
+            {trashCount > 0 && <span className="trash-badge">{trashCount}</span>}
+          </button>
+          <button className="sidebar-footer-btn" onClick={onOpenArchive} title="Archive">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2">
+              <polyline points="21 8 21 21 3 21 3 8"/>
+              <rect x="1" y="3" width="22" height="5"/>
+              <line x1="10" y1="12" x2="14" y2="12"/>
+            </svg>
+            Archive
+            {archivedCount > 0 && <span className="trash-badge" style={{background:"var(--color-text-muted)"}}>{archivedCount}</span>}
+          </button>
+        </div>
+        <div className="sidebar-user">{userButton}</div>
+      </div>
     </aside>
   );
 }
